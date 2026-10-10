@@ -1,3 +1,5 @@
+from pathlib import Path
+
 class TelemetrySession:
     def __init__(self,time,speed,rpm,throttle,brake,temp):
         self.speed = speed 
@@ -20,8 +22,8 @@ class TelemetrySession:
          return (round(getavg(self.temp),2))
     def calculate_acceleration(self):
         acceleration = []
-        tempspeed = self.speed[1:]
-        temptime = self.time[1:]
+        tempspeed = self.speed
+        temptime = self.time
         for i in range (len(tempspeed)-1):
              currentacc = ((tempspeed[i+1]-tempspeed[i])/3.6)/(temptime[i+1]-temptime[i])
              acceleration.append(round(currentacc,2))
@@ -39,6 +41,8 @@ class TelemetrySession:
         print(f'ENGINE\n----------------------------------------\n')
         print(f'Maximum RPM        : {self.getmaxrpm()}\nAverage RPM        : {self.getavgrpm()}\n\n')
         print(f'TEMPERATURE\n----------------------------------------\n')
+        print(f'Maximum Temp       : {self.getmaxtemp()} °C\nAverage Temp       : {self.getavgtemp()} °C\n\n')
+        print(f'ACCELERATİON\n----------------------------------------\n')
         print(f'Maximum Accel      : {self.getmaxaccel()} m/s²\nMaximum Decel      : {self.getminaccel()} m/s²\n\n========================================')
 
 def append_data(a,b):
@@ -82,5 +86,7 @@ def getavg(a):
 
 
 
-session1 = load_session(r'/Users/halilkilinc/Documents/Engineering/Python-Course/Project1_Telemetry_Analysis/telemetry.csv')
+path = Path(__file__).resolve().parent / "telemetry.csv"
+
+session1 = load_session(path)
 session1.getsummary()
