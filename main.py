@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import csv
 class TelemetrySession:
     def __init__(self,time,speed,rpm,throttle,brake,temp):
         self.speed = speed 
@@ -78,7 +78,10 @@ class TelemetrySession:
         print("BRAKING ANALYSIS")
         print("-" * 40)
         print(f"Braking Measurements  : {len(self.detect_braking())}")
-        print(f"Maximum Brake Decel   : {self.get_peak_braking_deceleration():.2f} m/s²")
+        if self.get_peak_braking_deceleration() is None:
+             print(f"Maximum Brake Decel   : N/A")
+        else:
+             print(f"Maximum Brake Decel   : {self.get_peak_braking_deceleration():.2f} m/s²")
         print(f"Throttle-Brake Overlap: {len(self.detect_overlap())}")
         print()
 
@@ -91,7 +94,7 @@ class TelemetrySession:
             if value != 0:
                  output.append(i)
         return output           
-    def brake_deccel(self):
+    def braking_accelerations(self):
         output = []
         accelerations = self.calculate_acceleration()
 
@@ -101,32 +104,84 @@ class TelemetrySession:
 
         return output
     def get_peak_braking_deceleration(self):
-         return getmin(self.brake_deccel())
+         if not self.braking_accelerations():
+             return None
+         else:
+             return getmin(self.braking_accelerations())
     def detect_overlap(self):
         index = []
         for i,(b,t) in enumerate(zip(self.brake,self.throttle)):
             if b!=0 and t!=0:
                 index.append(i)
         return index
+    def validate_data(self):
+        if not self.speed:
+             raise ValueError("Empty Telemetry Data")
+        for speed in self.speed:
+             if speed < 0:
+                  raise ValueError("Negative Speed Detected")
+        for i in range (len(self.time)):
+             if i > 0:
+                  if self.time[i-1] >= self.time[i]:
+                       raise ValueError("Invalid Timestamps")     
 
+        if len(self.speed)<2:
+             raise ValueError("At least two measurements are required")
+
+
+    def export_report(self,path):
+         with open(path,"w",newline="") as file:
+              writer = csv.writer(file)
+              writer.writerow(["Metric","Value","Unit"])
+              writer.writerow(["Maximum Speed",self.get_max_speed(),"km/h"])
+              writer.writerow(["Average Speed",round(self.get_avg_speed(),2),"km/h"])
+              writer.writerow(["Maximum Rpm",self.get_max_rpm(),"rpm"])
+              writer.writerow(["Average Rpm",round(self.get_avg_rpm(),2),"rpm"])
+              writer.writerow(["Maximum Temperature",self.get_max_temp(),"°C"])
+              writer.writerow(["Average Temperature",round(self.get_avg_temp(),2),"°C"])
+              writer.writerow(["Maximum Acceleration",round(self.get_max_accel(),2),"m/s²"])
+              writer.writerow(["Maximum Deceleration",round(self.get_min_accel(),2),"m/s²"])
+              writer.writerow(["Braking Measurements",len(self.detect_braking()),"count"])
+              if self.get_peak_braking_deceleration() is None:
+                   writer.writerow(["Peak Braking Deceleration","N/A","m/s²"])
+              else:
+                   writer.writerow(["Peak Braking Deceleration",round(self.get_peak_braking_deceleration(),2),"m/s²"])
+              
+              writer.writerow(["Throttle-Brake Overlap",len(self.detect_overlap()),"count"])
 def append_data(a,b):
     for i in range(len(b)):
         b[i].append(float(a[i]))
 
 def load_session(path):
+    try:
+        with open (path, 'r') as f:
+            raw_data = f.readlines()
+    except FileNotFoundError:
+         raise FileNotFoundError(f"Can't find the telemetry.csv file in path{path}")
 
-    with open (path, 'r') as f:
-        raw_data = f.readlines()
-
+    if not raw_data:
+         raise ValueError("CSV file is empty")
     time,speed,rpm,throttle,brake,temp = [],[],[],[],[],[]
-    datatypes = [time,speed,rpm,throttle,brake,temp]
+    data_types = [time,speed,rpm,throttle,brake,temp]
 
     all_datas = raw_data[1 :]
-    for data in all_datas:
-        cur_data = data.strip().split(',')
-        append_data(cur_data,datatypes)
+    column_names = raw_data[0].strip().split(',')
+    for line_number,data in enumerate(all_datas,start=2):
+        current_data = data.strip().split(',')
+        if len(current_data) != len(data_types):
+             raise ValueError("Invalid Column Count")
+        for column_index,value in enumerate(current_data):
+             
+            try:
+                data_types[column_index].append(float(value))
+            except ValueError:
+                raise ValueError(f'Invalid numeric data at CSV lines {line_number},{column_names[column_index]}-->{value!r}')
 
-    return TelemetrySession(*datatypes)
+
+    return TelemetrySession(*data_types)
+
+
+
 
 def getmax(a):
         max_value = a[0]
@@ -150,7 +205,11 @@ def getavg(a):
 
 
 
-path = Path(__file__).resolve().parent / "telemetry.csv"
+path = Path(__file__).resolve().parent / "telemetry_endurance_60min.csv"
 
 session1 = load_session(path)
+session1.validate_data()
 session1.get_summary()
+session1.export_report(
+    Path(__file__).resolve().parent / "Report.csv"
+)
