@@ -1,7 +1,7 @@
-from pathlib import Path
 import csv
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 class TelemetrySession:
     def __init__(self,df):
@@ -140,6 +140,38 @@ class TelemetrySession:
               
               writer.writerow(["Throttle-Brake Overlap",len(self.detect_overlap()),"count"])
 
+    def plot_dashboard(self):
+         fig, ax = plt.subplots(2,2,figsize =(12,8))
+         time = self.df['time_s']
+         #speed graph
+         ax[0,0].plot(time,self.df['speed_kmh'],'b')
+         ax[0,0].set_title('Vehicle Speed (km/h)')
+         ax[0,0].set_xlabel('Time')
+         ax[0,0].set_ylabel('Speed')
+         #rpm graph
+         ax[0,1].plot(time,self.df['rpm'],'k')
+         ax[0,1].set_title('Engine Speed (RPM)')
+         ax[0,1].set_xlabel('Time')
+         ax[0,1].set_ylabel('Rpm')
+         #acceleration graph
+         ax[1,0].plot(time.iloc[1:],self.calculate_acceleration(),'g')
+         ax[1,0].set_title('Vehicle Acceleration (m/s²)')
+         ax[1,0].set_xlabel('Time')
+         ax[1,0].set_ylabel('Acceleration')
+         #temperature graph
+         ax[1,1].plot(time,self.df['temp_c'],'r')
+         ax[1,1].set_title('Engine Temperature (°C)')
+         ax[1,1].set_xlabel('Time')
+         ax[1,1].set_ylabel('Temperature')
+
+         for axis in ax.flat:
+              axis.grid(True)
+              axis.set_xlim(600,700)
+         
+         
+         fig.tight_layout()
+         fig.savefig("telemetry_dashboard.png", dpi=150)
+         plt.show()
 
 def load_session_pandas(file_path):
     telemetry_data = pd.read_csv(file_path)
@@ -149,7 +181,8 @@ def load_session_pandas(file_path):
 
 
 
-session1 = load_session_pandas("telemetry.csv")
+session1 = load_session_pandas("telemetry_endurance_60min.csv")
 session1.validate_data()
 session1.get_summary()
 session1.export_report('report.csv')
+session1.plot_dashboard()

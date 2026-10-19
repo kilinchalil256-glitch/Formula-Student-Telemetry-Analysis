@@ -1,0 +1,12 @@
+Metric,Value,Unit
+Maximum Speed,141.59,km/h
+Average Speed,80.47,km/h
+Maximum Rpm,6950,rpm
+Average Rpm,5600.46,rpm
+Maximum Temperature,98.19,°C
+Average Temperature,93.06,°C
+Maximum Acceleration,4.19,m/s²
+Maximum Deceleration,-9.17,m/s²
+Braking Measurements,5942,count
+Peak Braking Deceleration,-9.17,m/s²
+Throttle-Brake Overlap,683,count
