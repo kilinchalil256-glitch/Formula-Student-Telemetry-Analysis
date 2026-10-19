@@ -1,41 +1,41 @@
-from pathlib import Path
 import csv
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
 class TelemetrySession:
-    def __init__(self,time,speed,rpm,throttle,brake,temp):
-        self.speed = speed 
-        self.time = time 
-        self.rpm = rpm 
-        self.throttle = throttle 
-        self.brake = brake 
-        self.temp = temp 
+    def __init__(self,df):
+        self.df = df
     def get_max_speed(self):
-         return getmax(self.speed)
+         return self.df['speed_kmh'].max()
     def get_avg_speed(self):
-         return getavg(self.speed)
+         return self.df['speed_kmh'].mean()
     def get_max_rpm(self):
-         return getmax(self.rpm)
+         return self.df['rpm'].max()
     def get_avg_rpm(self):
-         return getavg(self.rpm)
+         return self.df['rpm'].mean()
     def get_max_temp(self):
-        return getmax(self.temp)
+        return self.df['temp_c'].max()
     def get_avg_temp(self):
-         return getavg(self.temp)
+         return self.df['temp_c'].mean()
     def calculate_acceleration(self):
-        accelerations = []
+        #get speed difference
+        speed_array = self.df['speed_kmh'].to_numpy()
+        speed_diff = np.diff(speed_array)
+        #convert speed to the right metric
+        speed_diff = (speed_diff/3.6)
+        #get time difference
+        time_array = self.df['time_s'].to_numpy()
+        time_diff = np.diff(time_array)
 
-        for i in range(len(self.speed) - 1):
-            delta_speed = (self.speed[i + 1] - self.speed[i]) / 3.6
-            delta_time = self.time[i + 1] - self.time[i]
+        #calculate acceleration
+        accel = (speed_diff/time_diff)
+        return accel
 
-            acceleration = delta_speed / delta_time
-
-            accelerations.append(acceleration)
-
-        return accelerations      
     def get_max_accel(self):
-         return getmax(self.calculate_acceleration())
+         return self.calculate_acceleration().max()
     def get_min_accel(self):
-         return getmin(self.calculate_acceleration())
+         return self.calculate_acceleration().min()
     def get_summary(self):
         print("========== TELEMETRY ANALYSIS ==========")
         print()
@@ -43,7 +43,7 @@ class TelemetrySession:
         # GENERAL
         print("GENERAL")
         print("-" * 40)
-        print(f"Total Measurements    : {len(self.speed)}")
+        print(f"Total Measurements    : {len(self.df['speed_kmh'])}")
         print()
 
         # SPEED
@@ -89,45 +89,36 @@ class TelemetrySession:
 
         
     def detect_braking(self):
-        output = []
-        for i,value in enumerate(self.brake):
-            if value != 0:
-                 output.append(i)
-        return output           
+        braking_mask = self.df['brake_pct']>0
+        return np.flatnonzero(braking_mask)           
     def braking_accelerations(self):
-        output = []
         accelerations = self.calculate_acceleration()
-
-        for i in self.detect_braking():
-            if i > 0:
-                output.append(accelerations[i-1])
-
-        return output
+        braking_mask = self.df['brake_pct'].to_numpy()[1:] > 0
+        return accelerations[braking_mask]
+        
     def get_peak_braking_deceleration(self):
-         if not self.braking_accelerations():
-             return None
-         else:
-             return getmin(self.braking_accelerations())
+         accelerations = self.braking_accelerations()
+         decelerations = accelerations[accelerations < 0]
+         if decelerations.size > 0:
+            return decelerations.min()
+        
+         return None
     def detect_overlap(self):
-        index = []
-        for i,(b,t) in enumerate(zip(self.brake,self.throttle)):
-            if b!=0 and t!=0:
-                index.append(i)
-        return index
+        mask =  ((self.df['brake_pct']>0)
+                &(self.df['throttle_pct']>0)
+                )
+        return np.flatnonzero(mask)       
     def validate_data(self):
-        if not self.speed:
+        if self.df.empty:
              raise ValueError("Empty Telemetry Data")
-        for speed in self.speed:
-             if speed < 0:
-                  raise ValueError("Negative Speed Detected")
-        for i in range (len(self.time)):
-             if i > 0:
-                  if self.time[i-1] >= self.time[i]:
-                       raise ValueError("Invalid Timestamps")     
-
-        if len(self.speed)<2:
+        if (self.df['speed_kmh'] < 0).any():
+             raise ValueError("Negative Speed Detected")     
+        if ((self.df['time_s']).diff()<=0).any():
+             raise ValueError("Invalid Timestamps")     
+        if len(self.df['speed_kmh'])<2:
              raise ValueError("At least two measurements are required")
-
+        if self.df.isna().any().any():
+             raise ValueError("Missing Telemetry Data")
 
     def export_report(self,path):
          with open(path,"w",newline="") as file:
@@ -148,68 +139,50 @@ class TelemetrySession:
                    writer.writerow(["Peak Braking Deceleration",round(self.get_peak_braking_deceleration(),2),"m/s²"])
               
               writer.writerow(["Throttle-Brake Overlap",len(self.detect_overlap()),"count"])
-def append_data(a,b):
-    for i in range(len(b)):
-        b[i].append(float(a[i]))
 
-def load_session(path):
-    try:
-        with open (path, 'r') as f:
-            raw_data = f.readlines()
-    except FileNotFoundError:
-         raise FileNotFoundError(f"Can't find the telemetry.csv file in path{path}")
+    def plot_dashboard(self):
+         fig, ax = plt.subplots(2,2,figsize =(12,8))
+         time = self.df['time_s']
+         #speed graph
+         ax[0,0].plot(time,self.df['speed_kmh'],'b')
+         ax[0,0].set_title('Vehicle Speed (km/h)')
+         ax[0,0].set_xlabel('Time')
+         ax[0,0].set_ylabel('Speed')
+         #rpm graph
+         ax[0,1].plot(time,self.df['rpm'],'k')
+         ax[0,1].set_title('Engine Speed (RPM)')
+         ax[0,1].set_xlabel('Time')
+         ax[0,1].set_ylabel('Rpm')
+         #acceleration graph
+         ax[1,0].plot(time.iloc[1:],self.calculate_acceleration(),'g')
+         ax[1,0].set_title('Vehicle Acceleration (m/s²)')
+         ax[1,0].set_xlabel('Time')
+         ax[1,0].set_ylabel('Acceleration')
+         #temperature graph
+         ax[1,1].plot(time,self.df['temp_c'],'r')
+         ax[1,1].set_title('Engine Temperature (°C)')
+         ax[1,1].set_xlabel('Time')
+         ax[1,1].set_ylabel('Temperature')
 
-    if not raw_data:
-         raise ValueError("CSV file is empty")
-    time,speed,rpm,throttle,brake,temp = [],[],[],[],[],[]
-    data_types = [time,speed,rpm,throttle,brake,temp]
+         for axis in ax.flat:
+              axis.grid(True)
+              
+         
+         
+         fig.tight_layout()
+         fig.savefig("telemetry_dashboard.png", dpi=150)
+         plt.show()
 
-    all_datas = raw_data[1 :]
-    column_names = raw_data[0].strip().split(',')
-    for line_number,data in enumerate(all_datas,start=2):
-        current_data = data.strip().split(',')
-        if len(current_data) != len(data_types):
-             raise ValueError("Invalid Column Count")
-        for column_index,value in enumerate(current_data):
-             
-            try:
-                data_types[column_index].append(float(value))
-            except ValueError:
-                raise ValueError(f'Invalid numeric data at CSV lines {line_number},{column_names[column_index]}-->{value!r}')
-
-
-    return TelemetrySession(*data_types)
-
-
-
-
-def getmax(a):
-        max_value = a[0]
-        for data in a:
-            if data>max_value:
-                max_value = data
-        return max_value
-def getmin(a):
-        max_value = a[0]
-        for data in a:
-            if data<max_value:
-                max_value = data
-        return max_value
-def getavg(a):
-        total = 0
-        count = 0
-        for data in a:
-            total += data
-            count += 1
-        return (total/count)
+def load_session_pandas(file_path):
+    telemetry_data = pd.read_csv(file_path)
+    session = TelemetrySession(telemetry_data)
+    return session
 
 
 
-path = Path(__file__).resolve().parent / "telemetry_endurance_60min.csv"
 
-session1 = load_session(path)
+session1 = load_session_pandas("telemetry.csv")
 session1.validate_data()
 session1.get_summary()
-session1.export_report(
-    Path(__file__).resolve().parent / "Report.csv"
-)
+session1.export_report('report.csv')
+session1.plot_dashboard()
