@@ -9,3 +9,5 @@ Report.csv
 telemetry.csv
 telemetry_endurance_60min.csv
 pandas_exploration.__pycache__
+# VS Code local settings
+.vscode/

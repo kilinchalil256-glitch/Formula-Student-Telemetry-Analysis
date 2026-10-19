@@ -1,5 +1,0 @@
-{
-    "python-envs.pythonProjects": [],
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
-    "python.terminal.executeInFileDir": true
-}
