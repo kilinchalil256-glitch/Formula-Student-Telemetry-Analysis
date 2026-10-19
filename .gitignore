@@ -1,3 +1,11 @@
 .venv/
 __pycache__/
 .DS_Store
+# Generated outputs
+telemetry_dashboard.png
+report.csv
+Report.csv
+#test files
+telemetry.csv
+telemetry_endurance_60min.csv
+pandas_exploration.__pycache__

@@ -166,7 +166,7 @@ class TelemetrySession:
 
          for axis in ax.flat:
               axis.grid(True)
-              axis.set_xlim(600,700)
+              
          
          
          fig.tight_layout()
@@ -181,7 +181,7 @@ def load_session_pandas(file_path):
 
 
 
-session1 = load_session_pandas("telemetry_endurance_60min.csv")
+session1 = load_session_pandas("telemetry.csv")
 session1.validate_data()
 session1.get_summary()
 session1.export_report('report.csv')
